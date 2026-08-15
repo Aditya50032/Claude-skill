@@ -1,89 +1,131 @@
 # Disk Cleanup v2
 
-A Claude Code skill that finds what's actually using your disk space and safely reclaims storage.
+A cross-platform Claude Code skill that finds, analyzes, and safely reclaims disk space on **macOS, Linux, and Windows**.
 
-Instead of blindly deleting files, Disk Cleanup v2 analyzes caches, build artifacts, stale dependencies, and development leftovers, then shows exactly what can be removed before taking any action.
-
-## Features
-
-* 🔍 Scans your machine for reclaimable storage
-* 📦 Detects package manager caches (npm, pip, Go, etc.)
-* 🗂 Finds stale `node_modules` directories
-* 🐳 Identifies Docker leftovers
-* 🛡 Dry-run by default (nothing is deleted automatically)
-* ♻️ Quarantine-based recovery system
-* 🔒 Safety-first path validation
-* 📊 Reports estimated space savings before cleanup
+Instead of blindly deleting files, Disk Cleanup v2 identifies caches, build artifacts, package manager leftovers, browser caches, stale dependencies, and other reclaimable storage. Every cleanup is previewed before execution, and nothing is removed without approval.
 
 ---
 
-## Requirements
+## Features
 
-* Claude Code
-* Python 3.8+
-* macOS or Linux
+### Storage Analysis
+
+* Scan your system for reclaimable disk space
+* Identify the largest storage consumers
+* Categorize cleanup opportunities by risk level
+* Estimate space savings before cleanup
+
+### Supported Targets
+
+* npm cache
+* pip cache
+* yarn cache
+* pnpm store
+* Go build cache
+* Go module cache
+* Browser caches
+
+  * Chrome
+  * Brave
+  * Edge
+  * Firefox
+* JetBrains IDE caches
+* VS Code caches
+* Build artifacts
+* Stale node_modules directories
+* Docker leftovers
+
+### Safety Features
+
+* Dry-run by default
+* Approval required before cleanup
+* Path validation system
+* Protected directory enforcement
+* Quarantine and restore support
+* Detailed cleanup reports
+
+---
+
+## Supported Platforms
+
+| Platform   | Status      |
+| ---------- | ----------- |
+| macOS      | ✅ Supported |
+| Linux      | ✅ Supported |
+| Windows 10 | ✅ Supported |
+| Windows 11 | ✅ Supported |
 
 ---
 
 ## Installation
 
-### 1. Clone this repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/Aditya50032/disk-cleanup-v2.git
 ```
 
-### 2. Enter the repository
+### 2. Enter the project
 
 ```bash
 cd disk-cleanup-v2
 ```
 
-### 3. Install the skill
+### 3. Install into Claude Code
 
-Copy the skill folder into your Claude Code skills directory:
+#### Global Installation
 
 ```bash
 mkdir -p ~/.claude/skills
 cp -R disk-cleanup-v2 ~/.claude/skills/
 ```
 
-Alternatively, place it inside:
+#### Project-Specific Installation
+
+Copy the folder into:
 
 ```text
 .claude/skills/
 ```
 
-if you only want it available for a specific project.
+inside your project.
 
 ### 4. Restart Claude Code
 
-Close and reopen Claude Code.
+Restart Claude Code after installation.
 
-### 5. Verify installation
+### 5. Verify
 
-Inside Claude Code run:
+Inside Claude Code:
 
 ```text
 /skills
 ```
 
-You should see **Disk Cleanup v2** in the installed skills list.
+You should see:
+
+```text
+Disk Cleanup v2
+```
 
 ---
 
 ## Usage
 
-You do not need to invoke the skill directly.
+Simply describe your problem naturally.
 
-Simply describe your problem naturally:
+### Examples
 
 ```text
 What's using all my disk space?
 ```
 
 ```text
-My Mac is almost full. Help me clean it up.
+My Mac only has 5 GB left.
+```
+
+```text
+Help me clean up my Windows laptop.
 ```
 
 ```text
@@ -91,16 +133,21 @@ Find safe cleanup opportunities.
 ```
 
 ```text
-Docker is taking too much storage.
+Docker is using too much storage.
 ```
 
-The skill will:
+```text
+Analyze my system and generate a cleanup report.
+```
 
-1. Scan your machine
-2. Generate a report
-3. Estimate reclaimable storage
-4. Ask for approval
-5. Perform cleanup only after confirmation
+The skill automatically:
+
+1. Scans the system
+2. Categorizes findings
+3. Estimates recoverable space
+4. Shows a cleanup plan
+5. Waits for approval
+6. Executes approved cleanup actions
 
 ---
 
@@ -116,6 +163,7 @@ SAFE
 
 REGENERABLE
 - Stale node_modules
+- Build artifacts
 
 CAUTION
 - Docker volumes
@@ -123,62 +171,138 @@ CAUTION
 
 ---
 
-## Safety
+## Risk Tiers
 
-Disk Cleanup v2 is designed to avoid destructive mistakes.
+### SAFE
 
-It will not delete:
+Automatically regenerated.
+
+Examples:
+
+* Browser caches
+* pip cache
+* npm cache
+* Go cache
+
+### REGENERABLE
+
+Can be recreated but may require time or downloads.
+
+Examples:
+
+* node_modules
+* build outputs
+* package stores
+
+### CAUTION
+
+May contain important user data.
+
+Examples:
+
+* Docker volumes
+* Xcode archives
+* Database volumes
+
+---
+
+## Protected Paths
+
+Disk Cleanup v2 will never remove:
+
+### macOS/Linux
+
+```text
+~/Documents
+~/Desktop
+~/Downloads
+~/Pictures
+~/Music
+~/Movies
+~/.ssh
+~/.gnupg
+~/.aws
+~/.kube
+```
+
+### Windows
+
+```text
+C:\Users\<user>\Documents
+C:\Users\<user>\Desktop
+C:\Users\<user>\Downloads
+C:\Users\<user>\Pictures
+C:\Users\<user>\Videos
+C:\Users\<user>\Music
+```
+
+### Additional Protections
 
 * Git repositories
 * Source code
 * SSH keys
-* Documents
-* Desktop files
-* Downloads
-* Photos
-* Music
-* Videos
+* Environment files
 * Cloud storage folders
-
-All cleanups are previewed before execution.
+* Symbolic links
 
 ---
 
-## Project Structure
+## Repository Structure
 
 ```text
 disk-cleanup-v2/
 ├── README.md
+├── LICENSE
+├── CONTRIBUTING.md
+├── CHANGELOG.md
 ├── SKILL.md
 ├── scripts/
+│   ├── catalog.py
 │   ├── scan.py
 │   ├── clean.py
-│   ├── restore.py
 │   ├── quarantine.py
-│   └── catalog.py
+│   └── restore.py
 └── references/
     └── targets.md
 ```
 
 ---
 
+## Roadmap
+
+* [x] macOS support
+* [x] Linux support
+* [x] Windows support
+* [x] Duplicate file detection
+* [x] Largest file analyzer
+* [x] Storage usage visualization
+* [ ] HTML cleanup reports
+* [x] Scheduled cleanup recommendations
+
+---
+
 ## Contributing
 
-Pull requests and suggestions are welcome.
+Contributions are welcome.
 
-Ideas for future improvements:
+Suggested improvements:
 
-* Windows support
-* Duplicate file detection
-* Largest-file analysis
-* Additional package manager integrations
-* Storage usage visualization
+* Additional cache detectors
+* Better reporting
+* Performance improvements
+* New package manager integrations
+* Platform-specific enhancements
 
 ---
 
 ## License
 
 MIT License
+
+---
+
+Built by Aditya Pathak using Claude Code.
+
 
 ---
 
