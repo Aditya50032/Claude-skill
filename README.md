@@ -31,4 +31,4 @@ CAUTION (3 GB)
 ## Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/disk-cleanup-v2.git
+git clone https://github.com/Aditya50032/disk-cleanup-v2.git
