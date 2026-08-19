@@ -1,309 +1,276 @@
-# Disk Cleanup v2
+# disk-cleanup v2.1
 
-A cross-platform Claude Code skill that finds, analyzes, and safely reclaims disk space on **macOS, Linux, and Windows**.
+A [Claude Code](https://claude.com/claude-code) skill that finds and safely reclaims disk space.
 
-Instead of blindly deleting files, Disk Cleanup v2 identifies caches, build artifacts, package manager leftovers, browser caches, stale dependencies, and other reclaimable storage. Every cleanup is previewed before execution, and nothing is removed without approval.
+Ask Claude why your disk is full. It measures what's actually consuming space — package manager caches, stale `node_modules`, Docker leftovers, Xcode data, browser caches — sorts it by how much it costs you to lose, shows you the numbers, and removes only what you approve.
+
+Works on **macOS, Linux, and Windows 10/11**. The platform is detected automatically.
+
+**New in v2:** cleanup is reversible. Approved items move to a quarantine and stay restorable for 7 days instead of being deleted outright.
+
+**New in v2.1:** Windows support, with its own cache catalog and its own path protections. See [Windows support](#windows-support) below.
+
+```
+Reclaimable: 68 GB   (free space would go 23 GB -> 91 GB)
+
+SAFE (41 GB)          npm cache 12 GB · ~/Library/Caches 21 GB · pip cache 8 GB
+REGENERABLE (24 GB)   34 stale node_modules 19 GB (reinstall: npm install)
+CAUTION (3 GB)        2 unused Docker volumes — may hold database data
+```
 
 ---
 
-## Features
+## Install
 
-### Storage Analysis
+Download `disk-cleanup-v2.1.skill` and unpack it into your skills directory.
 
-* Scan your system for reclaimable disk space
-* Identify the largest storage consumers
-* Categorize cleanup opportunities by risk level
-* Estimate space savings before cleanup
-
-### Supported Targets
-
-* npm cache
-* pip cache
-* yarn cache
-* pnpm store
-* Go build cache
-* Go module cache
-* Browser caches
-
-  * Chrome
-  * Brave
-  * Edge
-  * Firefox
-* JetBrains IDE caches
-* VS Code caches
-* Build artifacts
-* Stale node_modules directories
-* Docker leftovers
-
-### Safety Features
-
-* Dry-run by default
-* Approval required before cleanup
-* Path validation system
-* Protected directory enforcement
-* Quarantine and restore support
-* Detailed cleanup reports
-
----
-
-## Supported Platforms
-
-| Platform   | Status      |
-| ---------- | ----------- |
-| macOS      | ✅ Supported |
-| Linux      | ✅ Supported |
-| Windows 10 | ✅ Supported |
-| Windows 11 | ✅ Supported |
-
----
-
-## Installation
-
-### 1. Clone the repository
+**macOS / Linux**
 
 ```bash
-git clone https://github.com/Aditya50032/disk-cleanup-v2.git
+unzip disk-cleanup-v2.1.skill -d ~/.claude/skills/
 ```
 
-### 2. Enter the project
+**Windows (PowerShell)**
+
+```powershell
+Expand-Archive disk-cleanup-v2.1.skill -DestinationPath "$env:USERPROFILE\.claude\skills"
+```
+
+**Windows (Command Prompt)** — PowerShell's `Expand-Archive` isn't available in `cmd.exe`; rename the file to `.zip` first:
+
+```cmd
+copy disk-cleanup-v2.1.skill disk-cleanup-v2.1.zip
+tar -xf disk-cleanup-v2.1.zip -C "%USERPROFILE%\.claude\skills"
+```
+
+(`tar` has shipped in `cmd.exe` since Windows 10 1803. If yours predates that, use PowerShell instead — every current Windows 10/11 install has it.)
+
+Use a project's own `.claude/skills/` folder instead if you only want it there. Restart Claude Code, then confirm it registered:
 
 ```bash
-cd disk-cleanup-v2
-```
-
-### 3. Install into Claude Code
-
-#### Global Installation
-
-```bash
-mkdir -p ~/.claude/skills
-cp -R disk-cleanup-v2 ~/.claude/skills/
-```
-
-#### Project-Specific Installation
-
-Copy the folder into:
-
-```text
-.claude/skills/
-```
-
-inside your project.
-
-### 4. Restart Claude Code
-
-Restart Claude Code after installation.
-
-### 5. Verify
-
-Inside Claude Code:
-
-```text
 /skills
 ```
 
-You should see:
-
-```text
-Disk Cleanup v2
-```
+Requires Python 3.8+. On macOS/Linux, `du` is used when present with an automatic fallback; Windows always uses the fallback. No third-party packages anywhere.
 
 ---
 
 ## Usage
 
-Simply describe your problem naturally.
+You don't invoke the skill by name. Describe the problem and it triggers:
 
-### Examples
+> my mac is at 4gb free, help
+>
+> what's eating all my disk space?
+>
+> docker is using like 80gb, can you clean it up
+>
+> "no space left on device" — I can't even save files
 
-```text
-What's using all my disk space?
+Claude scans, reports, and waits for your approval before deleting anything. Reply with what you accept — *"do the safe and regenerable ones"*, or *"just npm and pip"* — and it cleans exactly that.
+
+### Running the scripts yourself
+
+The scan is read-only and safe to run any time:
+
+```bash
+cd ~/.claude/skills/disk-cleanup-v2
+
+python3 scripts/scan.py                            # start here
+python3 scripts/scan.py --paths                    # list individual directories
+python3 scripts/scan.py --projects ~/work ~/code   # if your repos live elsewhere
+python3 scripts/scan.py --stale-days 90            # only projects idle 90+ days
 ```
 
-```text
-My Mac only has 5 GB left.
+To clean manually, write a plan first and act on it:
+
+```bash
+python3 scripts/scan.py --json plan.json
+python3 scripts/clean.py --plan plan.json --tiers safe                      # dry run
+python3 scripts/clean.py --plan plan.json --tiers safe,regenerable --confirm
+python3 scripts/clean.py --plan plan.json --tiers safe --confirm --no-quarantine
 ```
 
-```text
-Help me clean up my Windows laptop.
+### Undoing a cleanup
+
+```bash
+python3 scripts/restore.py --list             # batches, sizes, expiry
+python3 scripts/restore.py --list BATCH       # what's inside one
+python3 scripts/restore.py --restore BATCH    # put it back
+python3 scripts/restore.py --purge BATCH      # reclaim the space for real
+python3 scripts/restore.py --purge            # purge everything expired
 ```
 
-```text
-Find safe cleanup opportunities.
-```
+Expired batches purge automatically on the next `clean.py --confirm`. Restoring never overwrites: if something recreated the original path meanwhile, the recovered copy lands at `<path>.restored`.
 
-```text
-Docker is using too much storage.
-```
+Without `--confirm`, `clean.py` only prints what it *would* remove. Every real run appends each path and size to `~/.disk-cleanup/cleanup-<timestamp>.log` — that log is how you find out what went if something turns out to have been needed.
 
-```text
-Analyze my system and generate a cleanup report.
-```
+## Windows support
 
-The skill automatically:
+Windows 10 and 11 are detected automatically — there's nothing to configure, and nothing on macOS or Linux changes because of it.
 
-1. Scans the system
-2. Categorizes findings
-3. Estimates recoverable space
-4. Shows a cleanup plan
-5. Waits for approval
-6. Executes approved cleanup actions
+**Catalogued Windows caches:** `%TEMP%` and `%LOCALAPPDATA%\Temp`, Chrome, Edge, and Brave browser caches, VS Code's cache, and the Windows equivalents of every package-manager cache from v1 — pip, npm, Yarn, pnpm, NuGet, Gradle, Cargo, Go. Full list in [`references/targets.md`](references/targets.md#windows).
+
+**Windows-specific protections**, enforced the same way as macOS/Linux — denylist first, allowlist second, re-checked immediately before every delete:
+
+- `C:\Users\<you>\Documents`, `Desktop`, `Downloads`, `Pictures`, `Music`, `Videos` — never touched
+- `OneDrive`, including account-suffixed folders like `OneDrive - Contoso`; Google Drive; Dropbox — never touched
+- `C:\Windows`, `C:\Program Files`, `C:\ProgramData`, `$Recycle.Bin` — the directory and everything beneath it
+- Matching is **case-insensitive** on Windows (`c:\windows\system32` is refused exactly like `C:\Windows\System32`), matching how Windows itself treats paths
+- Junctions and reparse points are refused the same way symlinks are on POSIX
+
+One Windows-specific thing worth knowing: browser and editor caches can be **locked by a running process**. If Chrome or VS Code is open, some files may fail to delete with a permission error — that's expected, not a bug. Close the app for a fuller clean.
+
+### Options
+
+**`scan.py`**
+
+| Flag | Effect |
+|---|---|
+| `--projects PATH...` | Roots to search for build artifacts (default: `~/code`, `~/projects`, `~/src`, `~/dev`, `~/work`, `~/repos`, `~/Documents/GitHub`) |
+| `--stale-days N` | Only report artifacts whose project is untouched this long (default 30) |
+| `--json FILE` | Write a machine-readable plan for `clean.py` |
+| `--paths` | List individual paths under each target |
+| `--no-projects` | Skip the project walk; caches only |
+
+**`clean.py`**
+
+| Flag | Effect |
+|---|---|
+| `--plan FILE` | Plan produced by `scan.py --json` (required) |
+| `--tiers` | Comma-separated: `safe,regenerable` |
+| `--ids` | Comma-separated target ids, e.g. `npm-cache,xcode-derived` |
+| `--exclude` | Target ids to skip |
+| `--confirm` | Actually act — **omit this for a dry run** |
+| `--allow-sudo` | Permit targets whose purge command needs sudo (macOS/Linux) |
+| `--no-quarantine` | Delete immediately instead of quarantining |
+| `--retention-days N` | How long to keep quarantined items (default 7) |
 
 ---
 
-## Example Output
+## Risk tiers
 
-```text
-Reclaimable: 9.6 GB
+Every target lands in one of three tiers, which is what the approval step is really about.
 
-SAFE
-- Browser caches
-- Pip cache
-- Go build cache
+| Tier | Meaning | Example |
+|---|---|---|
+| **`safe`** | Regenerates automatically. Costs you a slower next command, nothing else. | npm cache, `__pycache__` |
+| **`regenerable`** | Comes back, but only by running something. Real time and bandwidth. | `node_modules` → `npm install` |
+| **`caution`** | May hold data with no other copy, or takes very long to recreate. | Docker volumes, Xcode Archives |
 
-REGENERABLE
-- Stale node_modules
-- Build artifacts
+`caution` items can't be swept by tier. `clean.py --tiers caution` is refused outright; you have to name each one with `--ids`. A Docker volume may be the only copy of your local database, and an Xcode Archive is what lets you symbolicate crash reports from a shipped release.
 
-CAUTION
-- Docker volumes
+---
+
+## The quarantine tradeoff
+
+Quarantine moves files rather than deleting them, so **space isn't reclaimed until you purge**. If you clean 60 GB and free space doesn't budge, that's why — run `restore.py --purge <BATCH>` to get it back for real, or wait 7 days for the automatic purge.
+
+Use `--no-quarantine` when the disk is genuinely full, or when the amount being cleaned is large relative to what's free. Holding 200 GB for a week on a drive with 40 GB free helps nobody.
+
+Two things quarantine can't cover: **command-driven targets** (Docker prunes, `journalctl --vacuum`) where an external tool does the deleting, and **cross-filesystem paths**, which are skipped rather than copied — copy-then-delete would briefly double disk usage, the worst possible behaviour mid-cleanup.
+
+## How the safety works
+
+The guardrails live in code, not in prose instructions to the model. A skill that just says "be careful" is one bad inference away from `rm -rf ~/Documents`.
+
+`clean.py` re-validates every path against a denylist immediately before deleting it, independently of whatever the plan file claims. It's also an allowlist: a path has to be a known artifact name or a catalogued cache path, or it's refused regardless of what asked for it.
+
+**Never deleted, under any circumstances:**
+
+- Source files, and any directory containing `.git`
+- `.env`, `id_rsa`, `id_ed25519`, `.netrc`, `.pgpass`
+- `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.kube`
+- `~/Documents`, `~/Desktop`, `~/Downloads`, `~/Pictures`, `~/Music`, `~/Movies`
+- Dropbox, OneDrive, Google Drive, iCloud Drive folders
+- Symlinks — deleting one would delete through to its target
+- `/`, `/usr`, `/etc`, `/var`, `/home`, `$HOME`, and anything under three components deep
+
+One deliberate exception: a directory whose own *final* component is a known artifact stays deletable inside an otherwise protected location, because `~/Documents/GitHub/project/node_modules` is genuinely just `node_modules`. Being merely *inside* `Documents` never qualifies.
+
+### Verified against attack
+
+The guardrails were tested against fixtures containing real user data, on both POSIX and a simulated Windows profile:
+
+- **25 POSIX path-validator cases** — `/`, `/etc`, `$HOME`, `~/Documents`, `~/Downloads`, `~/.ssh/id_rsa`, `.env`, git repo roots, source directories, and a symlink named `node_modules` pointing at `~/Documents`. All denied; genuine artifacts allowed.
+- **Tampered-plan attack** — the plan file was hand-edited to inject `~/Documents/thesis`, `~/Downloads`, `~/.ssh`, and `/etc` into an already-approved target. All seven refused with reasons, while the legitimate `node_modules` was still cleaned.
+- **Dry-run default and tier sweeps** — `--confirm` omitted touches nothing; `--tiers caution` is refused; unknown tier names error out.
+- **Quarantine round trip** — 72 MB across three targets moved out, listed, restored, and byte-verified intact; purge reclaimed the space for real; `--no-quarantine` deleted directly; and a restore onto a path recreated by a fresh `npm install` landed at `.restored` without clobbering the newer copy.
+- **97-case automated suite** (`tests/test_paths.py`) — Windows denials (system roots, `Documents`/`Desktop`/`Downloads`, `OneDrive` including account-suffixed variants, SSH keys, case-insensitive matching, `.git` roots) and allowances (every cataloged Windows cache path, build artifacts), POSIX regression, catalog integrity, platform isolation, and cross-platform path expansion. Runs on any OS — the Windows rules are exercised through a synthetic Windows environment rather than requiring a Windows machine.
+- **POSIX regression** — full scan output diffed byte-for-byte between v2.0.0 and v2.1.0 against an identical fixture. Zero differences beyond the new opt-in `.NET` artifact detection.
+- **Simulated Windows scan** — a mock `%LOCALAPPDATA%`/`%APPDATA%` profile populated with all eight required cache types plus `Documents`, `Downloads`, and an `OneDrive - Contoso` folder. All eight caches found and sized correctly; all three protected folders absent from the resulting plan.
+
+Run the suite yourself:
+
+```bash
+python3 tests/test_paths.py
 ```
 
 ---
 
-## Risk Tiers
+## Design notes
 
-### SAFE
+**Prefer the tool's own cleaner.** Where a package manager ships a purge command, `clean.py` runs that instead of `rm -rf` — `npm cache clean --force`, `brew cleanup -s`, `uv cache clean`. Package managers keep index files alongside cached blobs, and removing the directory underneath leaves the tool believing it still has content it doesn't.
 
-Automatically regenerated.
+**`target/` and `build/` need a sibling manifest.** Both names are far too common as ordinary source directories to delete on the name alone. A `target/` only counts as a Rust build output if `Cargo.toml` sits next to it; `build/` needs `CMakeLists.txt`.
 
-Examples:
+**Staleness is a safety filter, not a nag.** Anything touched in the last 30 days is skipped, so an active project's `node_modules` never gets proposed — deleting it mid-work costs an immediate reinstall and breaks a running dev server. Drop to `--stale-days 7` if you're genuinely desperate.
 
-* Browser caches
-* pip cache
-* npm cache
-* Go cache
+**Docker gets special handling.** `docker system prune` is fine with approval. `docker system prune -a` re-pulls every image, which can be hours on a slow link, so the cost gets stated explicitly. `docker volume prune` is never bulk-approved.
 
-### REGENERABLE
-
-Can be recreated but may require time or downloads.
-
-Examples:
-
-* node_modules
-* build outputs
-* package stores
-
-### CAUTION
-
-May contain important user data.
-
-Examples:
-
-* Docker volumes
-* Xcode archives
-* Database volumes
+**If the space is your own files, it says so.** When the biggest directory is photos, video projects, or datasets, the honest answer is "your data is the thing taking up space" — not a creative reinterpretation of what counts as a cache.
 
 ---
 
-## Protected Paths
+## Layout
 
-Disk Cleanup v2 will never remove:
-
-### macOS/Linux
-
-```text
-~/Documents
-~/Desktop
-~/Downloads
-~/Pictures
-~/Music
-~/Movies
-~/.ssh
-~/.gnupg
-~/.aws
-~/.kube
 ```
-
-### Windows
-
-```text
-C:\Users\<user>\Documents
-C:\Users\<user>\Desktop
-C:\Users\<user>\Downloads
-C:\Users\<user>\Pictures
-C:\Users\<user>\Videos
-C:\Users\<user>\Music
-```
-
-### Additional Protections
-
-* Git repositories
-* Source code
-* SSH keys
-* Environment files
-* Cloud storage folders
-* Symbolic links
-
----
-
-## Repository Structure
-
-```text
-disk-cleanup-v2/
-├── README.md
-├── LICENSE
-├── CONTRIBUTING.md
-├── CHANGELOG.md
-├── SKILL.md
+disk-cleanup-v2.1/
+├── SKILL.md                 workflow, tiers, and judgment calls
+├── CHANGELOG.md              version history
 ├── scripts/
-│   ├── catalog.py
-│   ├── scan.py
-│   ├── clean.py
-│   ├── quarantine.py
-│   └── restore.py
-└── references/
-    └── targets.md
+│   ├── catalog.py           target definitions + path policy — the safety core
+│   ├── scan.py              read-only measurement and reporting
+│   ├── clean.py             execution, dry-run by default
+│   ├── quarantine.py        batch moves, manifests, retention
+│   └── restore.py           list / restore / purge
+├── references/
+│   └── targets.md           full per-platform catalog with regeneration costs
+└── tests/
+    └── test_paths.py        97-case path policy suite, runs on any OS
 ```
 
 ---
 
-## Roadmap
+## Extending it
 
-* [x] macOS support
-* [x] Linux support
-* [x] Windows support
-* [x] Duplicate file detection
-* [x] Largest file analyzer
-* [x] Storage usage visualization
-* [ ] HTML cleanup reports
-* [x] Scheduled cleanup recommendations
+Add a target to `TARGETS` in `scripts/catalog.py`:
 
----
+```python
+_t("mytool-cache", "MyTool cache", SAFE, ["~/.cache/mytool"],
+   platforms=("darwin", "linux"),
+   regen="repopulates on next mytool build",
+   purge_cmd="mytool cache clear")     # optional, preferred over rm -rf
+```
 
-## Contributing
+Then check three things:
 
-Contributions are welcome.
-
-Suggested improvements:
-
-* Additional cache detectors
-* Better reporting
-* Performance improvements
-* New package manager integrations
-* Platform-specific enhancements
+1. **Tier it honestly.** If losing it costs a rebuild it's `regenerable`, not `safe`. If it could hold data with no other copy it's `caution`, however large and tempting it looks.
+2. **Make sure `validate_path()` accepts it.** Catalogued paths pass automatically. A new artifact *directory name* also has to go in `ARTIFACT_BASENAMES`, or the validator refuses it at delete time even though the scanner found it.
+3. **Document it** in `references/targets.md`.
 
 ---
 
-## License
+## Caveats
 
-MIT License
+Tested directly on Linux; macOS behaviour follows the same code paths and is covered by the same test suite. Windows support is implemented and covered by 97 automated path-policy assertions plus a simulated end-to-end scan, but has not been exercised on a physical Windows machine — file an issue if something doesn't match a real Windows 10/11 install. WSL works today regardless, since it's Linux underneath.
+
+Sizes come from `du` where available (macOS/Linux) and an `os.scandir` walk otherwise (always on Windows). On filesystems with compression or deduplication (APFS, ZFS, btrfs, Windows' own file compression), reclaimed space can differ from the estimate.
+
+`scan.py` only reports targets over 1 MB (5 MB for project artifacts), so a long tail of small caches won't appear. That's deliberate — a report you can read beats a report that's complete.
 
 ---
 
-Built by Aditya Pathak using Claude Code.
+## Disclaimer
 
-
----
-
-Built by Aditya Pathak using Claude Code.
+Deleting files is irreversible. The safeguards here are thorough and tested, but back up anything you can't afford to lose before running cleanup tools — this one or any other.
